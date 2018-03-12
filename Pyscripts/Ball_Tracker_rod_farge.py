@@ -3,6 +3,8 @@ import socket
 import cv2
 import mss
 import numpy as np
+host = '127.0.0.1'
+port = 5000
 
 
 with mss.mss() as sct:
@@ -16,6 +18,11 @@ with mss.mss() as sct:
     greenUpper = (150, 255, 255)
     
 
+    mySocket = socket.socket()
+    mySocket.connect((host,port))
+    #time.clock()
+    timer =0
+    
     while 'Screen capturing':
 
 
@@ -60,43 +67,26 @@ with mss.mss() as sct:
                 cv2.circle(frame, (int(x), int(y)), int(radius),
                            (0, 255, 255), 2)
                 cv2.circle(frame, center, 5, (0, 0, 255), -1)
+
+            #Sender kordinat for sirkel til server en gang hvert sekund.
+            if time.time() > (timer+1):
+                message= str(x)+ "#"+ str(y)
+                mySocket.send(message.encode())   
+                timer = time.time()
+
+            
+                
         # Display the picture
         cv2.imshow('OpenCV/Numpy normal', frame)
         cv2.imshow('maske',mask)
-        print(x)
-        print(y)
+       
 
-        # Display the picture in grayscale
-        # cv2.imshow('OpenCV/Numpy grayscale',
-        #            cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY))
+       
 
         print('fps: {0}'.format(1 / (time.time()-last_time)))
 
-        #sending position over network
-        def Main():
-            host = '127.0.0.1'
-            port = 5000
-             
-            mySocket = socket.socket()
-            mySocket.connect((host,port))
-             
-            message = x
-            message1 = y
-             
-            while message != 'q':
-                    mySocket.send(message.encode())
-                    mySocket.send(message1.encode())
-                    data = mySocket.recv(1024).decode()
-                     
-                    print ('Received from server: ' + data)
-                     
-                    message = input(" -> ")
-                     
-            mySocket.close()
- 
-        if __name__ == '__main__':
-           Main()
-
+        
+        
 
 
 
@@ -105,5 +95,6 @@ with mss.mss() as sct:
 
         # Press "q" to quit
         if cv2.waitKey(25) & 0xFF == ord('q'):
+            mySocket.close()
             cv2.destroyAllWindows()
             break
