@@ -14,12 +14,13 @@ MAV_MODE_AUTO   = 4
 # https://github.com/PX4/Firmware/blob/master/Tools/mavlink_px4.py
 home_position_set = False
 Close = False;
-CommandList =None
-CommandNumber = 0
+
 print ("Connecting")
 vehicle = connect(connection_string, wait_ready=True)
 
-
+global CommandList
+global CommandNumber
+global cmds
 
 
 
@@ -29,7 +30,7 @@ def help():
 
 
 ###Metoder
-def connectToCircleDetectionThread():	
+def connectToCircleDetectionThread():
     host = "127.0.0.1"
     port = 5000
      
@@ -52,9 +53,14 @@ def connectToCircleDetectionThread():
                     data = conn.recv(1024).decode()
                     if not data:
                         break
+                    
+                    print ("\nthread: from connected  user: " + str(data))
+
+                    #splitter data og x kordinaten er datakordinater[0] y kordinaten er datakordinater[1]    
+                    datakordinater = data.split("#")
                     current = vehicle.location.global_relative_frame
                     GoTo(current)
-                    print ("\nthread: from connected  user: " + str(data))
+                    
                 except:
                     pass        
             print("thread:Connection dropped")     
@@ -74,6 +80,7 @@ def status():
     print (" System status: %s" % vehicle.system_status.state)
     print (" GPS: %s" % vehicle.gps_0)
     print (" Alt: %s" % vehicle.location.global_relative_frame.alt)
+    print ("CommandNumber = %s" %CommandNumber)
 
 ##Move L i Z-akse
 def takeoff(height):
@@ -107,8 +114,7 @@ def land():
     cmd = Command(0,0,0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_LAND, 0, 1, 0, 0, 0, 0, wp.lat, wp.lon, wp.alt)
     cmds.add(cmd)
     wp = get_location_offset_meters(wp, 0, 0, -wp.alt)
-    print("Landing at: ")
-    pos()
+    print("Landing at %s" %wp)
     cmds.upload()
     time.sleep(2)
 	#vehicle.armed = True
@@ -124,7 +130,7 @@ def gridSearch():
     ##takeoff
     home = vehicle.location.global_relative_frame
     #if ( home.alt<4):
-    wp = get_location_offset_meters(home, 0, 0, 5)
+    wp = get_location_offset_meters(home, 0, 0, 5);
     cmd = Command(0,0,0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_TAKEOFF, 0, 1, 0, 0, 0, 0, wp.lat, wp.lon,wp.alt)
     cmds.add(cmd)
     #else:
@@ -133,92 +139,92 @@ def gridSearch():
     x = 80
     y = 5
     while(i< 6):
-        wp = get_location_offset_meters(wp, x, 0, 0)
+        wp = get_location_offset_meters(wp, x, 0, 0);
         cmd = Command(0,0,0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 1, 0, 0, 0, 0, wp.lat, wp.lon, wp.alt)
         cmds.add(cmd)
-        wp = get_location_offset_meters(wp, 0, -y, 0)
+        wp = get_location_offset_meters(wp, 0, -y, 0);
         cmd = Command(0,0,0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 1, 0, 0, 0, 0, wp.lat, wp.lon, wp.alt)
         cmds.add(cmd)
-        wp = get_location_offset_meters(wp, -x, 0, 0)
+        wp = get_location_offset_meters(wp, -x, 0, 0);
         cmd = Command(0,0,0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 1, 0, 0, 0, 0, wp.lat, wp.lon, wp.alt)
         cmds.add(cmd)
-        wp = get_location_offset_meters(wp, 0, -y, 0)
+        wp = get_location_offset_meters(wp, 0, -y, 0);
         cmd = Command(0,0,0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 1, 0, 0, 0, 0, wp.lat, wp.lon, wp.alt)
         cmds.add(cmd)
         i=i+1
 
-    wp = get_location_offset_meters(wp, 0,2* y*i, 0)
+    wp = get_location_offset_meters(wp, 0,2* y*i, 0);
     cmd = Command(0,0,0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, 17, 0, 1, 0, 0, 0, 0, wp.lat, wp.lon, wp.alt)
     cmds.add(cmd)
-    CommandList = cmds
+    global CommandList
+    #CommandList = cmds[:]
     cmds.upload()
-    time.sleep(2)
-
+    time.sleep(1)
+    global CommandNumber
     # Arm vehicle
     vehicle.armed = True
-
-    # monitor mission execution
+    ###
+    #monitor mission execution
     nextwaypoint = vehicle.commands.next
     while nextwaypoint < len(vehicle.commands) and not Close:
         if vehicle.commands.next > nextwaypoint:
             display_seq = vehicle.commands.next+1
-            CommandNumber = display_seq
+            
             print ("Moving to waypoint %s" % display_seq)
+            #CommandNumber=display_seq
+
             nextwaypoint = vehicle.commands.next
             time.sleep(2)
-        if Close:
+        if Close :
             break
     # wait for the vehicle to land
     #while vehicle.commands.next > 0:
      #   time.sleep(1)
-    time.sleep(1)
+    time.sleep(3)
     print("Grid mission done, killing Thread")
     #vehicle.armed = False
 
 def GoTo(pos):
+    
+    #CommandNumber=vehicle.commands.next+1
+    #print("vehicle command = %s"%CommandNumber)
+    CommandList = cmds[:]
+    CommandNumber=vehicle.commands.next
     cmds.clear()
     current = vehicle.location.global_relative_frame
     cmd = Command(0,0,0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 1, 0, 0, 0, 0, pos.lat, pos.lon, current.alt)
     cmds.add(cmd)
     cmds.upload()
 
-def GoToNewPos():
-    MAV_CMD_OVERRIDE_GOTO =252
-    MAV_GOTO_DO_HOLD =0
-    MAV_GOTO_DO_CONTINUE =1
-    MAV_GOTO_HOLD_AT_CURRENT_POSITION = 2
-    MAV_GOTO_HOLD_AT_SPECIFIED_POSITION= 3
-    current = vehicle.location.local_frame
-    #cmd = Command(0, 0, 0, mavutil.mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT, mavutil.mavlink.MAV_CMD_NAV_WAYPOINT, 0, 1, 0, 0, 0, 0, pos.lat, pos.lon, current.alt)
-    vehicle._master.mav.command_long_send(vehicle._master.target_system, vehicle._master.target_component,
-                                          MAV_CMD_OVERRIDE_GOTO, 1,0, MAV_GOTO_HOLD_AT_CURRENT_POSITION ,mavutil.mavlink.MAV_FRAME_LOCAL_NED , 0, 0, 0, 0)
-
 def pos():
     print("%s" % vehicle.location.global_frame)
     print("%s" % vehicle.location.global_relative_frame)
     print("%s" % vehicle.location.local_frame)  # NED
 
+
+def stop(cmds):
+	
+    #print("vehicle command = %s"%CommandNumber)
+	current = vehicle.location.global_relative_frame
+	GoTo(current)
+
 def resume():
-    cmds = CommandList
+    missionlist=[]
+    for cmd in CommandList:
+        #print("append mission cmd")
+        missionlist.append(cmd)
 
+    for i in range((CommandNumber-1),len(missionlist)):
+        cmds.add(missionlist[i])
+
+    print("--Resuming mission--")
     cmds.upload()
 
-def excecute():
-    cmds.upload()
-    time.sleep(2)
-    vehicle.armed = True
-    nextwaypoint = vehicle.commands.next
-    while nextwaypoint < len(vehicle.commands):
-        if vehicle.commands.next > nextwaypoint:
-            display_seq = vehicle.commands.next+1
-            print ("Moving to waypoint %s" % display_seq)
-            nextwaypoint = vehicle.commands.next
-        time.sleep(1)
+
 ##PX4mode.
 def PX4setMode():
-    MAV_CMD_DO_SET_MODE = 176
     vehicle._master.mav.command_long_send(vehicle._master.target_system, vehicle._master.target_component,
-                                          MAV_CMD_DO_SET_MODE, 0,
+                                               176, 0,
                                                MAV_MODE_AUTO,
                                                0, 0, 0, 0, 0, 0)
 ##Omregne gpspos.
@@ -261,14 +267,14 @@ cmds = vehicle.commands
 cmds.clear()
 cmds.upload()
 vehicle.airspeed=3
-t1 = threading.Thread(target=connectToCircleDetectionThread)
-t = threading.Thread(target=gridSearch)
+
+t1= threading.Thread(target=connectToCircleDetectionThread)
 Start_Pos = vehicle.location.global_relative_frame
 print("------kommandolokke------")
 inn = '*'
 while not inn == 'q':
     inn=raw_input("cmd:")
-    if inn == 'h':
+    if inn =='h':
         help()
     elif inn =='c':
         if not t1.isAlive():
@@ -278,11 +284,11 @@ while not inn == 'q':
         else:
             print("Allready started listening thread.")
         
-    elif inn == 'o':
-        print("trying new move command.")
-        GoToNewPos()
+        
     elif inn =='s':
         status()
+    elif inn =='r':
+        resume()
     elif inn =='t':
         height=raw_input("height?:")
         takeoff(int(height))
@@ -311,15 +317,19 @@ while not inn == 'q':
         #cmds.upload()
     elif inn == "stop":
         vehicle.airspeed = 0
-        vehicle._master.waypoint_clear_all_send()
-        current = vehicle.location.global_relative_frame
-        GoTo(current)
+        #vehicle._master.waypoint_clear_all_send()
+        #CommandList = cmds[:]
+        #CommandNumber=vehicle.commands.next
+        #print("vehicle command = %s"%CommandNumber)
+    	current = vehicle.location.global_relative_frame
+    	GoTo(current)
+        #stop(cmds)
     elif inn == "home":
         print("--returning home.")
         GoTo(Start_Pos)
     elif inn == "pos":
         print("---Current Position----")
-        pos()
+        pos()     
 # Disarm vehicle
 vehicle.armed = False
 Close = True
